@@ -116,9 +116,9 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 		else
 		{
 			// merge
-			std::vector<int> inputs, inputs_only_derive, inputs_only_drive, outputs;
+			std::vector<int> inputs, inputs_only_derive, inputs_only_drive, _outputs;
 
-			outputs.push_back(n->GetId());
+			_outputs.push_back(n->GetId());
 
 			bool not_merge = false;
 			for (auto& t : n->GetTraces())
@@ -136,11 +136,11 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 			}
 
 			if (!not_merge && inputs.size() == inputs_only_derive.size()) {
-				g.AddOp(tracking::OpType::MERGE, inputs, outputs);
+				g.AddOp(tracking::OpType::MERGE, inputs, _outputs);
 			} else if (input_ids.find(n->GetId()) == input_ids.end()) {
-				g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, outputs);
+				g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, _outputs);
 			} else {
-				g.AddOp(tracking::OpType::DERIVE, inputs_only_derive, outputs);
+				g.AddOp(tracking::OpType::DERIVE, inputs_only_derive, _outputs);
 			}
 		}
 	}
@@ -148,12 +148,12 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 	// split
 	for (auto pair : split_collect)
 	{
-		std::vector<int> inputs, outputs, outputs_only_derive;
+		std::vector<int> inputs, _outputs, outputs_only_derive;
 
 		inputs.push_back(pair.first->GetId());
 		for (auto o : pair.second) 
 		{
-			outputs.push_back(o->GetId());
+			_outputs.push_back(o->GetId());
 
 			bool is_derive = true;
 			for (auto& t : o->GetTraces())
@@ -169,10 +169,10 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 			}
 		}
 
-		if (outputs.size() == outputs_only_derive.size()) {
-			g.AddOp(tracking::OpType::SPLIT, inputs, outputs);
+		if (_outputs.size() == outputs_only_derive.size()) {
+			g.AddOp(tracking::OpType::SPLIT, inputs, _outputs);
 		} else if (outputs_only_derive.empty()) {
-			g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, outputs);
+			g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, _outputs);
 		} else {
 			g.AddOp(tracking::OpType::SPLIT, inputs, outputs_only_derive);
 		}

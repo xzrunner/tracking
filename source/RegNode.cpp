@@ -122,8 +122,8 @@ void RegNode::TransmitTrace(RegNode* parent, OpType type, RegNode* expect)
 	{
 		if (t.GetNode() == expect)
 		{
-			uint32_t type = t.GetType() | flag;
-			AddTrace(Trace(t.GetNode(), t.GetWeight(), type));
+			uint32_t t_type = t.GetType() | flag;
+			AddTrace(Trace(t.GetNode(), t.GetWeight(), t_type));
 		}
 	}
 }
