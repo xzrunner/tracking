@@ -1,4 +1,4 @@
-#include "tracking/GraphCompressor.h"
+#include "tracking/Compressor.h"
 #include "tracking/Graph.h"
 #include "tracking/RegNode.h"
 #include "tracking/OpNode.h"
@@ -250,7 +250,7 @@ void compress_with_input(tracking::Graph& g, const std::vector<tracking::RegNode
 namespace tracking
 {
 
-std::shared_ptr<Graph> GraphCompressor::Compress(const Graph& src)
+std::shared_ptr<Graph> Compressor::Compress(const Graph& src)
 {
 	std::vector<RegNode*> input, output, need_output;
 	std::set<int> input_ids, output_ids;

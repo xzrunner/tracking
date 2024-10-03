@@ -7,11 +7,11 @@ namespace tracking
 
 class Graph;
 
-class GraphCompressor
+class Compressor
 {
 public:
 	static std::shared_ptr<Graph> Compress(const Graph& graph);
 
-}; // GraphCompressor
+}; // Compressor
 
 }

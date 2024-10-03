@@ -25,10 +25,10 @@ set(nodes
 source_group("nodes" FILES ${nodes})
 
 set(tools
-    "include/tracking/GraphCompressor.h"
-    "include/tracking/GraphSerializer.h"
-    "source/GraphCompressor.cpp"
-    "source/GraphSerializer.cpp"
+    "include/tracking/Compressor.h"
+    "include/tracking/Serializer.h"
+    "source/Compressor.cpp"
+    "source/Serializer.cpp"
 )
 source_group("tools" FILES ${tools})
 
