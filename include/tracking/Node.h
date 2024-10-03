@@ -18,10 +18,10 @@ public:
 	auto& GetInputs() const { return m_inputs; }
 	auto& GetOutputs() const { return m_outputs; }
 
+
+
 private:
 	std::vector<Node*> m_inputs, m_outputs;
-
-	friend class Graph;
 
 }; // Node
 

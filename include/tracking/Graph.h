@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OpType.h"
+#include "tracking/OpType.h"
 
 #include <vector>
 #include <unordered_map>
@@ -29,7 +29,7 @@ private:
 	Node* NewNode(OpType type);
 	Node* NewNode(int reg);
 
-	static bool IsOutputNew(OpType type);
+	Node* QueryOpNode(OpType type, const std::vector<int>& inputs) const;
 
 private:
 	std::vector<OpNode*> m_op_nodes;

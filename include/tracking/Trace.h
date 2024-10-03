@@ -10,7 +10,8 @@ class RegNode;
 enum TypeFlagBits
 {
 	TRACE_TYPE_COPY_BIT = 0x0001,
-	TRACE_TYPE_DRIVE_BIT = 0x0002
+	TRACE_TYPE_DRIVE_BIT = 0x0002,
+	TRACE_TYPE_DRIVE_CHANGE_BIT = 0x0004
 };
 
 class Trace

@@ -20,23 +20,44 @@ Graph::~Graph()
 void Graph::AddOp(OpType type, const std::vector<int>& inputs, 
 	              const std::vector<int>& outputs)
 {
-	auto op_node = NewNode(type);
+	Node* op_node = nullptr;
+	bool merge_output = false;
 
-	for (auto reg : inputs)
+	// merge outputs
+	if (can_merge_output(type))
 	{
-		Node* reg_node = nullptr;
-
-		auto itr = m_registers.find(reg);
-		if (itr == m_registers.end()) {
-			reg_node = NewNode(reg);
-		} else {
-			reg_node = itr->second;
+		auto node = QueryOpNode(type, inputs);
+		if (node)
+		{
+			op_node = node;
+			merge_output = true;
 		}
-
-		reg_node->Connect(op_node);
 	}
 
-	if (IsOutputNew(type))
+	if (!merge_output)
+	{
+		op_node = NewNode(type);
+
+		for (auto reg : inputs)
+		{
+			if (!is_output_create(type) && std::find(outputs.begin(), outputs.end(), reg) != outputs.end()) {
+				continue;
+			}
+
+			Node* reg_node = nullptr;
+
+			auto itr = m_registers.find(reg);
+			if (itr == m_registers.end()) {
+				reg_node = NewNode(reg);
+			} else {
+				reg_node = itr->second;
+			}
+
+			reg_node->Connect(op_node);
+		}
+	}
+
+	if (is_output_create(type))
 	{
 		for (auto reg : outputs)
 		{
@@ -54,9 +75,16 @@ void Graph::AddOp(OpType type, const std::vector<int>& inputs,
 	{
 		for (auto reg : outputs)
 		{
+			Node* reg_node = nullptr;
+
 			auto itr = m_registers.find(reg);
-			assert(itr != m_registers.end());
-			op_node->Connect(itr->second);
+			if (itr == m_registers.end()) {
+				reg_node = NewNode(reg);
+			} else {
+				reg_node = itr->second;
+			}
+
+			op_node->Connect(reg_node);
 		}
 	}
 }
@@ -76,13 +104,42 @@ Node* Graph::NewNode(int reg)
 	return node;
 }
 
-bool Graph::IsOutputNew(OpType type)
+Node* Graph::QueryOpNode(OpType type, const std::vector<int>& inputs) const
 {
-	if (type == OpType::DRIVE) {
-		return false;
-	} else {
-		return true;
+	if (inputs.empty()) {
+		return nullptr;
 	}
+
+	auto itr = m_registers.find(inputs[0]);
+	if (itr == m_registers.end()) {
+		return nullptr;
+	}
+
+	Node* op_node = static_cast<RegNode*>(itr->second)->QueryOpNode(false, type);
+	if (!op_node) {
+		return nullptr;
+	}
+
+	if (op_node->GetInputs().size() != inputs.size()) {
+		return nullptr;
+	}
+
+	for (auto r : op_node->GetInputs())
+	{
+		bool find = false;
+		for (auto i : inputs) 
+		{
+			if (static_cast<RegNode*>(r)->GetId() == i) {
+				find = true;
+				break;
+			}
+		}
+		if (!find) {
+			return nullptr;
+		}
+	}
+
+	return op_node;
 }
 
 }
