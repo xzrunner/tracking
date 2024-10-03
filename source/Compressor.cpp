@@ -38,9 +38,7 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 			tracking::Node* op = reg_outputs[0];
 			auto& op_outputs = op->GetOutputs();
 			tracking::OpType op_type = static_cast<tracking::OpNode*>(op)->GetType();
-			switch (op_type)
-			{
-			case tracking::OpType::SPLIT:
+			if (op_type == tracking::OpType::SPLIT)
 			{
 				for (auto c : op_outputs)
 				{
@@ -48,21 +46,15 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 					static_cast<tracking::RegNode*>(c)->CombineTraces(reg, w, root);
 				}
 			}
-				break;
-			case tracking::OpType::MERGE:
+			else if (op_type == tracking::OpType::MERGE)
 			{
 				assert(op_outputs.size() == 1);
 				static_cast<tracking::RegNode*>(op_outputs[0])->CombineTraces(reg, 1.0f, root);
 			}
-				break;
-			case tracking::OpType::COPY:
-			case tracking::OpType::DRIVE:
-			case tracking::OpType::DRIVE_CHANGE:
+			else if (tracking::need_transmit_trace(op_type))
 			{
 				assert(op_outputs.size() == 1);
 				static_cast<tracking::RegNode*>(op_outputs[0])->TransmitTrace(reg, op_type, root);
-			}
-				break;
 			}
 
 			for (auto n : op_outputs) {

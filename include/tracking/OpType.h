@@ -52,4 +52,11 @@ static bool can_merge_output(OpType type)
 	return type == OpType::DERIVE_CREATE;
 }
 
+static bool need_transmit_trace(OpType type)
+{
+	return type == tracking::OpType::COPY
+		|| type == tracking::OpType::DRIVE
+		|| type == tracking::OpType::DRIVE_CHANGE;
+}
+
 }
