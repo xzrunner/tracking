@@ -34,31 +34,32 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 				continue;
 			}
 
-			assert(reg_outputs.size() == 1);
-			tracking::Node* op = reg_outputs[0];
-			auto& op_outputs = op->GetOutputs();
-			tracking::OpType op_type = static_cast<tracking::OpNode*>(op)->GetType();
-			if (op_type == tracking::OpType::SPLIT)
+			for (auto op : reg_outputs)
 			{
-				for (auto c : op_outputs)
+				auto& op_outputs = op->GetOutputs();
+				tracking::OpType op_type = static_cast<tracking::OpNode*>(op)->GetType();
+				if (op_type == tracking::OpType::SPLIT)
 				{
-					const float w = 1.0f / op_outputs.size();
-					static_cast<tracking::RegNode*>(c)->CombineTraces(reg, w, root);
+					for (auto c : op_outputs)
+					{
+						const float w = 1.0f / op_outputs.size();
+						static_cast<tracking::RegNode*>(c)->CombineTraces(reg, w, root);
+					}
 				}
-			}
-			else if (op_type == tracking::OpType::MERGE)
-			{
-				assert(op_outputs.size() == 1);
-				static_cast<tracking::RegNode*>(op_outputs[0])->CombineTraces(reg, 1.0f, root);
-			}
-			else if (tracking::need_transmit_trace(op_type))
-			{
-				assert(op_outputs.size() == 1);
-				static_cast<tracking::RegNode*>(op_outputs[0])->TransmitTrace(reg, op_type, root);
-			}
+				else if (op_type == tracking::OpType::MERGE)
+				{
+					assert(op_outputs.size() == 1);
+					static_cast<tracking::RegNode*>(op_outputs[0])->CombineTraces(reg, 1.0f, root);
+				}
+				else if (tracking::need_transmit_trace(op_type))
+				{
+					assert(op_outputs.size() == 1);
+					static_cast<tracking::RegNode*>(op_outputs[0])->TransmitTrace(reg, op_type, root);
+				}
 
-			for (auto n : op_outputs) {
-				buf.push(static_cast<tracking::RegNode*>(n));
+				for (auto n : op_outputs) {
+					buf.push(static_cast<tracking::RegNode*>(n));
+				}
 			}
 		}
 	}
