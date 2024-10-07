@@ -51,7 +51,8 @@ inline bool is_need_output(OpType type)
 
 inline bool can_merge_output(OpType type)
 {
-	return type == OpType::DERIVE_CREATE;
+	//return type == OpType::DERIVE_CREATE;
+	return false;
 }
 
 inline bool need_transmit_trace(OpType type)
