@@ -1,6 +1,8 @@
 #include "tracking/RegNode.h"
 #include "tracking/OpNode.h"
 #include "tracking/Graph.h"
+#include "tracking/EvolveTrace.h"
+#include "tracking/DriveTrace.h"
 
 #include <iterator>
 
@@ -57,73 +59,75 @@ void RegNode::ClearTraces()
 
 void RegNode::InitTrace()
 {
-	m_traces = { Trace(this, 1.0f) };
+	m_traces = { std::make_unique<EvolveTrace>(this, 1.0f) };
 }
 
 void RegNode::DeinitTrace()
 {
 	for (auto itr = m_traces.begin(); itr != m_traces.end(); ++itr)
 	{
-		if (itr->GetNode() == this)
+		if ((*itr)->GetNode() == this && (*itr)->IsEvolve())
 		{
-			assert(itr->GetWeight() == 1.0f);
+			assert(std::static_pointer_cast<EvolveTrace>(*itr)->GetWeight() == 1.0f);
 			m_traces.erase(itr);
 			break;
 		}
 	}
 }
 
-void RegNode::CombineTraces(RegNode* parent, float weight, RegNode* expect)
+void RegNode::TransmitEvolveTraces(RegNode* parent, float weight, RegNode* expect)
 {
 	for (auto pt : parent->m_traces)
 	{
-		if (pt.GetNode() != expect) {
+		if (pt->GetNode() != expect) {
 			continue;
 		}
 
-		const float w = pt.GetWeight() * weight;
-		
-		bool find = false;
-		for (auto& t : m_traces)
+		if (pt->IsEvolve())
 		{
-			if (t.GetNode() == pt.GetNode())
-			{
-				t.AddWeight(w);
-				find = true;
-				break;
-			}
+			const float w = std::static_pointer_cast<EvolveTrace>(pt)->GetWeight() * weight;
+			AddEvolveTrace(pt->GetNode(), w);
 		}
-
-		if (!find) {
-			AddTrace(Trace(pt.GetNode(), w, pt.GetType()));
+		else
+		{
+			const uint32_t t = std::static_pointer_cast<DriveTrace>(pt)->GetType();
+			AddDriveTrace(pt->GetNode(), t);
 		}
 	}
 }
 
-void RegNode::TransmitTrace(RegNode* parent, OpType type, RegNode* expect)
+void RegNode::TransmitDriveTraces(RegNode* parent, OpType type, RegNode* expect)
 {
-	TypeFlagBits flag;
+	DriveTraceTypeFlagBits flag;
 	switch (type)
 	{
 	case OpType::COPY:
-		flag = TRACE_TYPE_COPY_BIT;
+		flag = DTT_COPY_BIT;
 		break;
 	case OpType::DRIVE:
-		flag = TRACE_TYPE_DRIVE_BIT;
+		flag = DTT_DRIVE_BIT;
 		break;
 	case OpType::DRIVE_CHANGE:
-		flag = TRACE_TYPE_DRIVE_CHANGE_BIT;
+		flag = DTT_DRIVE_CHANGE_BIT;
 		break;
 	default:
 		return;
 	}
 
-	for (auto t : parent->m_traces)
+	for (auto pt : parent->m_traces)
 	{
-		if (t.GetNode() == expect)
+		if (pt->GetNode() != expect) {
+			continue;
+		}
+
+		if (pt->IsEvolve())
 		{
-			uint32_t t_type = t.GetType() | flag;
-			AddTrace(Trace(t.GetNode(), t.GetWeight(), t_type));
+			AddDriveTrace(pt->GetNode(), flag);
+		}
+		else
+		{
+			const uint32_t t = std::static_pointer_cast<DriveTrace>(pt)->GetType() | flag;
+			AddDriveTrace(pt->GetNode(), t);
 		}
 	}
 }
@@ -140,15 +144,30 @@ Node* RegNode::QueryOpNode(bool input, OpType type) const
 	return nullptr;
 }
 
-void RegNode::AddTrace(const Trace& t)
+void RegNode::AddEvolveTrace(RegNode* node, float weight)
 {
-	for (auto old_t : m_traces) 
+	for (auto& t : m_traces)
 	{
-		if (old_t.GetNode() == t.GetNode()) {
+		if (t->GetNode() == node && t->IsEvolve())
+		{
+			std::static_pointer_cast<EvolveTrace>(t)->AddWeight(weight);
 			return;
 		}
 	}
-	m_traces.push_back(t);
+	m_traces.push_back(std::make_shared<EvolveTrace>(node, weight));
+}
+
+void RegNode::AddDriveTrace(RegNode* node, uint32_t type)
+{
+	for (auto& t : m_traces)
+	{
+		if (t->GetNode() == node && !t->IsEvolve())
+		{
+			std::static_pointer_cast<DriveTrace>(t)->AddType(type);
+			return;
+		}
+	}
+	m_traces.push_back(std::make_shared<DriveTrace>(node, type));
 }
 
 }

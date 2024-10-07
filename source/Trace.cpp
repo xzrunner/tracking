@@ -3,10 +3,9 @@
 namespace tracking
 {
 
-Trace::Trace(RegNode* node, float weight, uint32_t type)
+Trace::Trace(RegNode* node, bool is_evolve)
 	: m_node(node)
-	, m_weight(weight)
-	, m_type(type)
+	, m_is_evolve(is_evolve)
 {
 }
 

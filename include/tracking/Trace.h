@@ -1,34 +1,23 @@
 #pragma once
 
-#include <stdint.h>
-
 namespace tracking
 {
 
 class RegNode;
 
-enum TypeFlagBits
-{
-	TRACE_TYPE_COPY_BIT = 0x0001,
-	TRACE_TYPE_DRIVE_BIT = 0x0002,
-	TRACE_TYPE_DRIVE_CHANGE_BIT = 0x0004
-};
-
 class Trace
 {
 public:
-	Trace(RegNode* node, float weight, uint32_t type = 0);
+	Trace(RegNode* node, bool is_evolve);
 
 	auto GetNode() const { return m_node; }
-	auto GetWeight() const { return m_weight; }
-	auto GetType() const { return m_type; }
 
-	void AddWeight(float w) { m_weight += w; }
+	bool IsEvolve() const { return m_is_evolve; }
 
 private:
-	RegNode* m_node;
-	float    m_weight;
-	uint32_t m_type;
+	RegNode* m_node = nullptr;
+	
+	bool m_is_evolve = true;
 
 }; // Trace
 

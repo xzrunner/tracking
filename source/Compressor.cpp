@@ -2,6 +2,8 @@
 #include "tracking/Graph.h"
 #include "tracking/RegNode.h"
 #include "tracking/OpNode.h"
+#include "tracking/EvolveTrace.h"
+#include "tracking/DriveTrace.h"
 
 #include <vector>
 #include <queue>
@@ -43,18 +45,18 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 					for (auto c : op_outputs)
 					{
 						const float w = 1.0f / op_outputs.size();
-						static_cast<tracking::RegNode*>(c)->CombineTraces(reg, w, root);
+						static_cast<tracking::RegNode*>(c)->TransmitEvolveTraces(reg, w, root);
 					}
 				}
 				else if (op_type == tracking::OpType::MERGE)
 				{
 					assert(op_outputs.size() == 1);
-					static_cast<tracking::RegNode*>(op_outputs[0])->CombineTraces(reg, 1.0f, root);
+					static_cast<tracking::RegNode*>(op_outputs[0])->TransmitEvolveTraces(reg, 1.0f, root);
 				}
 				else if (tracking::need_transmit_trace(op_type))
 				{
 					assert(op_outputs.size() == 1);
-					static_cast<tracking::RegNode*>(op_outputs[0])->TransmitTrace(reg, op_type, root);
+					static_cast<tracking::RegNode*>(op_outputs[0])->TransmitDriveTraces(reg, op_type, root);
 				}
 
 				for (auto n : op_outputs) {
@@ -93,12 +95,13 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 		else if (traces.size() == 1)
 		{
 			auto& t = traces[0];
+			auto t_node = t->GetNode();
 			// split
-			if (t.GetType() == 0)
+			if (t->IsEvolve())
 			{
-				auto itr = split_collect.find(t.GetNode());
+				auto itr = split_collect.find(t_node);
 				if (itr == split_collect.end()) {
-					split_collect.insert({ t.GetNode(), {n} });
+					split_collect.insert({ t_node, {n} });
 				} else {
 					itr->second.push_back(n);
 				}
@@ -107,41 +110,45 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 			else
 			{
 				auto copy_op = n->QueryOpNode(true, tracking::OpType::COPY);
-				if (copy_op && copy_op->GetInputs()[0] == t.GetNode()) {
-					g.AddOp(tracking::OpType::CREATE, { t.GetNode()->GetId() }, { n->GetId() });
+				if (copy_op && copy_op->GetInputs()[0] == t_node) {
+					g.AddOp(tracking::OpType::CREATE, { t_node->GetId() }, { n->GetId() });
 				} else {
-					g.AddOp(tracking::OpType::DERIVE_CREATE, { t.GetNode()->GetId() }, { n->GetId() });
+					g.AddOp(tracking::OpType::DERIVE_CREATE, { t_node->GetId() }, { n->GetId() });
 				}
 			}
 		}
 		else
 		{
 			// merge
-			std::vector<int> inputs, inputs_only_derive, inputs_only_drive, _outputs;
+			std::vector<int> inputs, inputs_only_evolve, inputs_only_drive, _outputs;
 
 			_outputs.push_back(n->GetId());
 
 			bool not_merge = false;
 			for (auto& t : n->GetTraces())
 			{
-				int t_id = t.GetNode()->GetId();
+				int t_id = t->GetNode()->GetId();
 				inputs.push_back(t_id);
-				if (t.GetType() == 0) {
-					inputs_only_derive.push_back(t_id);
-				} else {
-					inputs_only_drive.push_back(t_id);
+				if (t->IsEvolve())
+				{
+					inputs_only_evolve.push_back(t_id);
+					if (std::static_pointer_cast<tracking::EvolveTrace>(t)->GetWeight() < 1)
+					{
+						not_merge = true;
+					}
 				}
-				if (t.GetWeight() < 1) {
-					not_merge = true;
+				else 
+				{
+					inputs_only_drive.push_back(t_id);
 				}
 			}
 
-			if (!not_merge && inputs.size() == inputs_only_derive.size()) {
+			if (!not_merge && inputs.size() == inputs_only_evolve.size()) {
 				g.AddOp(tracking::OpType::MERGE, inputs, _outputs);
 			} else if (input_ids.find(n->GetId()) == input_ids.end()) {
 				g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, _outputs);
 			} else {
-				g.AddOp(tracking::OpType::DERIVE, inputs_only_derive, _outputs);
+				g.AddOp(tracking::OpType::DERIVE, inputs_only_evolve, _outputs);
 			}
 		}
 	}
@@ -149,33 +156,33 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 	// split
 	for (auto pair : split_collect)
 	{
-		std::vector<int> inputs, _outputs, outputs_only_derive;
+		std::vector<int> inputs, _outputs, outputs_only_evolve;
 
 		inputs.push_back(pair.first->GetId());
 		for (auto o : pair.second) 
 		{
 			_outputs.push_back(o->GetId());
 
-			bool is_derive = true;
+			bool is_evolve = true;
 			for (auto& t : o->GetTraces())
 			{
-				if (t.GetType() > 0)
+				if (!t->IsEvolve())
 				{
-					is_derive = false;
+					is_evolve = false;
 					break;
 				}
 			}
-			if (is_derive) {
-				outputs_only_derive.push_back(o->GetId());
+			if (is_evolve) {
+				outputs_only_evolve.push_back(o->GetId());
 			}
 		}
 
-		if (_outputs.size() == outputs_only_derive.size()) {
+		if (_outputs.size() == outputs_only_evolve.size()) {
 			g.AddOp(tracking::OpType::SPLIT, inputs, _outputs);
-		} else if (outputs_only_derive.empty()) {
+		} else if (outputs_only_evolve.empty()) {
 			g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, _outputs);
 		} else {
-			g.AddOp(tracking::OpType::SPLIT, inputs, outputs_only_derive);
+			g.AddOp(tracking::OpType::SPLIT, inputs, outputs_only_evolve);
 		}
 	}
 
@@ -191,8 +198,13 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 			std::vector<int> inputs;
 			for (auto& t : reg->GetTraces())
 			{
-				if (t.GetType() & tracking::TRACE_TYPE_DRIVE_CHANGE_BIT) {
-					inputs.push_back(t.GetNode()->GetId());
+				if (!t->IsEvolve())
+				{
+					auto dt = std::static_pointer_cast<tracking::DriveTrace>(t);
+					if (dt->GetType() & tracking::DTT_DRIVE_CHANGE_BIT)
+					{
+						inputs.push_back(t->GetNode()->GetId());
+					}
 				}
 			}
 			if (!inputs.empty()) {

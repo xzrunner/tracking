@@ -17,12 +17,20 @@ set(nodes
     "include/tracking/OpNode.h"
     "include/tracking/OpType.h"
     "include/tracking/RegNode.h"
-    "include/tracking/Trace.h"
     "source/OpNode.cpp"
     "source/RegNode.cpp"
-    "source/Trace.cpp"
 )
 source_group("nodes" FILES ${nodes})
+
+set(traces
+    "include/tracking/Trace.h"
+    "include/tracking/EvolveTrace.h"
+    "include/tracking/DriveTrace.h"
+    "source/Trace.cpp"
+    "source/EvolveTrace.cpp"
+    "source/DriveTrace.cpp"
+)
+source_group("traces" FILES ${traces})
 
 set(tools
     "include/tracking/Compressor.h"
@@ -34,7 +42,8 @@ source_group("tools" FILES ${tools})
 
 set(ALL_FILES
     ${graph}
-    ${nodes}    
+    ${nodes}
+    ${traces}
     ${tools}
 )
 

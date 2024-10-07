@@ -1,10 +1,13 @@
 #pragma once
 
 #include "Node.h"
-#include "Trace.h"
+
+#include <memory>
 
 namespace tracking
 {
+
+class Trace;
 
 class RegNode : public Node
 {
@@ -21,20 +24,21 @@ public:
 	void InitTrace();
 	void DeinitTrace();
 
-	void CombineTraces(RegNode* parent, float weight, RegNode* expect);
-	void TransmitTrace(RegNode* parent, OpType type, RegNode* expect);
+	void TransmitEvolveTraces(RegNode* parent, float weight, RegNode* expect);
+	void TransmitDriveTraces(RegNode* parent, OpType type, RegNode* expect);
 
 	int GetId() const { return m_id; }
 
 	Node* QueryOpNode(bool input, OpType type) const;
 
 private:
-	void AddTrace(const Trace& t);
+	void AddEvolveTrace(RegNode* node, float weight);
+	void AddDriveTrace(RegNode* node, uint32_t type);
 
 private:
 	int m_id;
 
-	std::vector<Trace> m_traces;
+	std::vector<std::shared_ptr<Trace>> m_traces;
 
 }; // RegNode
 
