@@ -5,6 +5,8 @@ namespace tracking
 
 enum class OpType
 {
+	UNKNOWN,
+
 	CREATE,
 	DELETE,
 	CHANGE,
