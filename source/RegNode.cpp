@@ -34,7 +34,7 @@ bool RegNode::IsGraphOutput() const
 	}
 	for (auto op : GetOutputs())
 	{
-		if (is_derive_input(static_cast<OpNode*>(op)->GetType())) {
+		if (is_evolve_input(static_cast<OpNode*>(op)->GetType())) {
 			return false;
 		}
 	}

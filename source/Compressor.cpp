@@ -72,11 +72,107 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 	}
 }
 
+void compress_merge(tracking::Graph& g, tracking::RegNode* node)
+{
+	assert(node->GetTraces().size() > 1);
+
+	std::vector<std::pair<uint32_t, tracking::RegNode*>> drive_inputs;
+	std::vector<std::pair<float, int>> evolve_inputs;
+	for (auto& t : node->GetTraces())
+	{
+		if (t->IsEvolve())
+		{
+			const float w = std::static_pointer_cast<tracking::EvolveTrace>(t)->GetWeight();
+			evolve_inputs.push_back({ w, t->GetNode()->GetId() });
+		}
+		else
+		{
+			const uint32_t type = std::static_pointer_cast<tracking::DriveTrace>(t)->GetType();
+			drive_inputs.push_back({ type, t->GetNode() });
+		}
+	}
+
+	std::sort(evolve_inputs.begin(), evolve_inputs.end(), 
+		[](const std::pair<float, int>& p0, const std::pair<float, int>& p1)
+	{
+		return p0.first > p1.first;
+	});
+
+	if (evolve_inputs.back().first < 1.0f)
+	{
+		g.AddMergeSplitOp(evolve_inputs, node->GetId());
+	}
+	else
+	{
+		std::vector<int> inputs;
+		for (auto p : evolve_inputs) {
+			inputs.push_back(p.second);
+		}
+		g.AddOp(tracking::OpType::MERGE, inputs, { node->GetId() });
+	}
+
+	// todo: copy?
+	std::vector<int> d_inputs, dc_inputs;
+	for (auto& pair : drive_inputs)
+	{
+		if (pair.first & tracking::DTT_DRIVE_BIT) {
+			d_inputs.push_back(pair.second->GetId());
+		}
+		if (pair.first & tracking::DTT_DRIVE_CHANGE_BIT) {
+			dc_inputs.push_back(pair.second->GetId());
+		}
+	}
+	if (!d_inputs.empty()) {
+		g.AddOp(tracking::OpType::DRIVE, d_inputs, { node->GetId() });
+	}
+	if (!dc_inputs.empty()) {
+		g.AddOp(tracking::OpType::DRIVE_CHANGE, dc_inputs, { node->GetId() });
+	}
+}
+
+void compress_split(tracking::Graph& g, const tracking::RegNode* parent, 
+	                const std::vector<std::pair<tracking::RegNode*, std::shared_ptr<tracking::Trace>>>& children)
+{
+	std::vector<std::pair<uint32_t, tracking::RegNode*>> drive_outputs;
+	std::vector<std::pair<float, tracking::RegNode*>> evolve_outputs;
+	for (auto& pair : children)
+	{
+		auto c_node = pair.first;
+		auto c_trace = pair.second;
+		if (c_trace->IsEvolve())
+		{
+			const float w = std::static_pointer_cast<tracking::EvolveTrace>(c_trace)->GetWeight();
+			evolve_outputs.push_back({ w, c_node });
+		}
+		else
+		{
+			const uint32_t type = std::static_pointer_cast<tracking::DriveTrace>(c_trace)->GetType();
+			drive_outputs.push_back({ type, c_node });
+		}
+	}
+
+	if (!evolve_outputs.empty())
+	{
+		std::vector<int> outputs;
+		for (auto& pair : evolve_outputs) {
+			outputs.push_back(pair.second->GetId());
+		}
+
+		tracking::Node* op_node = nullptr;
+		if (auto reg_node = g.QueryRegNode(parent->GetId())) {
+			op_node = static_cast<tracking::RegNode*>(reg_node)->QueryOpNode(false, tracking::OpType::SPLIT);
+		}
+
+		g.AddOp(tracking::OpType::SPLIT, { parent->GetId()}, outputs, op_node);
+	}
+	// drive_outputs?
+}
+
 void compress_with_output(tracking::Graph& g, const std::set<int> input_ids, 
 	                      const std::vector<tracking::RegNode*>& outputs, 
 	                      const std::vector<tracking::RegNode*>& others)
 {
-	std::map<tracking::RegNode*, std::vector<tracking::RegNode*>> split_collect;
+	std::map<tracking::RegNode*, std::vector<std::pair<tracking::RegNode*, std::shared_ptr<tracking::Trace>>>> split_collect;
 	for (auto n : outputs)
 	{
 		auto& traces = n->GetTraces();
@@ -101,89 +197,32 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 			{
 				auto itr = split_collect.find(t_node);
 				if (itr == split_collect.end()) {
-					split_collect.insert({ t_node, {n} });
+					split_collect.insert({ t_node, { std::make_pair(n, t) } });
 				} else {
-					itr->second.push_back(n);
+					itr->second.push_back({ n, t });
 				}
 			}
-			// copy or derive_create
+			// copy or drive_create
 			else
 			{
 				auto copy_op = n->QueryOpNode(true, tracking::OpType::COPY);
 				if (copy_op && copy_op->GetInputs()[0] == t_node) {
 					g.AddOp(tracking::OpType::CREATE, { t_node->GetId() }, { n->GetId() });
 				} else {
-					g.AddOp(tracking::OpType::DERIVE_CREATE, { t_node->GetId() }, { n->GetId() });
+					g.AddOp(tracking::OpType::DRIVE_CREATE, { t_node->GetId() }, { n->GetId() });
 				}
 			}
 		}
 		else
 		{
 			// merge
-			std::vector<int> inputs, inputs_only_evolve, inputs_only_drive, _outputs;
-
-			_outputs.push_back(n->GetId());
-
-			bool not_merge = false;
-			for (auto& t : n->GetTraces())
-			{
-				int t_id = t->GetNode()->GetId();
-				inputs.push_back(t_id);
-				if (t->IsEvolve())
-				{
-					inputs_only_evolve.push_back(t_id);
-					if (std::static_pointer_cast<tracking::EvolveTrace>(t)->GetWeight() < 1)
-					{
-						not_merge = true;
-					}
-				}
-				else 
-				{
-					inputs_only_drive.push_back(t_id);
-				}
-			}
-
-			if (!not_merge && inputs.size() == inputs_only_evolve.size()) {
-				g.AddOp(tracking::OpType::MERGE, inputs, _outputs);
-			} else if (input_ids.find(n->GetId()) == input_ids.end()) {
-				g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, _outputs);
-			} else {
-				g.AddOp(tracking::OpType::DERIVE, inputs_only_evolve, _outputs);
-			}
+			compress_merge(g, n);
 		}
 	}
 
 	// split
-	for (auto pair : split_collect)
-	{
-		std::vector<int> inputs, _outputs, outputs_only_evolve;
-
-		inputs.push_back(pair.first->GetId());
-		for (auto o : pair.second) 
-		{
-			_outputs.push_back(o->GetId());
-
-			bool is_evolve = true;
-			for (auto& t : o->GetTraces())
-			{
-				if (!t->IsEvolve())
-				{
-					is_evolve = false;
-					break;
-				}
-			}
-			if (is_evolve) {
-				outputs_only_evolve.push_back(o->GetId());
-			}
-		}
-
-		if (_outputs.size() == outputs_only_evolve.size()) {
-			g.AddOp(tracking::OpType::SPLIT, inputs, _outputs);
-		} else if (outputs_only_evolve.empty()) {
-			g.AddOp(tracking::OpType::DERIVE_CREATE, inputs, _outputs);
-		} else {
-			g.AddOp(tracking::OpType::SPLIT, inputs, outputs_only_evolve);
-		}
+	for (auto pair : split_collect) {
+		compress_split(g, pair.first, pair.second);
 	}
 
 	for (auto reg : others)

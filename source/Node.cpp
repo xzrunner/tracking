@@ -5,6 +5,13 @@ namespace tracking
 
 void Node::Connect(Node* to)
 {
+	for (auto output : m_outputs)
+	{
+		if (output == to) {
+			return;
+		}
+	}
+
 	m_outputs.push_back(to);
 	to->m_inputs.push_back(this);
 }

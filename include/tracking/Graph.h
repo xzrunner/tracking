@@ -20,10 +20,13 @@ public:
 	~Graph();
 
 	void AddOp(OpType type, const std::vector<int>& inputs, 
-		const std::vector<int>& outputs);
+		const std::vector<int>& outputs, Node* op_node = nullptr);
+	void AddMergeSplitOp(const std::vector<std::pair<float, int>> inputs, int output);
 
 	auto& GetAllOpNodes() const { return m_op_nodes; }
 	auto& GetAllRegNodes() const { return m_reg_nodes; }
+
+	Node* QueryRegNode(int id) const;
 
 private:
 	Node* NewNode(OpType type);

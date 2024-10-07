@@ -18,25 +18,26 @@ Graph::~Graph()
 }
 
 void Graph::AddOp(OpType type, const std::vector<int>& inputs, 
-	              const std::vector<int>& outputs)
+	              const std::vector<int>& outputs, Node* op_node)
 {
-	Node* op_node = nullptr;
 	bool merge_output = false;
 
-	// merge outputs
-	if (can_merge_output(type))
-	{
-		auto node = QueryOpNode(type, inputs);
-		if (node)
-		{
-			op_node = node;
-			merge_output = true;
-		}
-	}
+	//// merge outputs
+	//if (can_merge_output(type))
+	//{
+	//	auto node = QueryOpNode(type, inputs);
+	//	if (node)
+	//	{
+	//		op_node = node;
+	//		merge_output = true;
+	//	}
+	//}
 
 	if (!merge_output)
 	{
-		op_node = NewNode(type);
+		if (!op_node) {
+			op_node = NewNode(type);
+		}
 
 		for (auto reg : inputs)
 		{
@@ -87,6 +88,52 @@ void Graph::AddOp(OpType type, const std::vector<int>& inputs,
 			op_node->Connect(reg_node);
 		}
 	}
+}
+
+void Graph::AddMergeSplitOp(const std::vector<std::pair<float, int>> inputs, int output)
+{
+	assert(inputs.size() > 1);
+
+	Node* merge_node = NewNode(OpType::MERGE);
+	for (auto& input : inputs)
+	{
+		Node* input_node = nullptr;
+		auto itr = m_registers.find(input.second);
+		if (itr == m_registers.end()) {
+			input_node = NewNode(input.second);
+		} else {
+			input_node = itr->second;
+		}
+
+		if (input.first < 1.0f)
+		{
+			Node* split_node = static_cast<RegNode*>(input_node)->QueryOpNode(false, OpType::SPLIT);
+			if (!split_node)
+			{
+				split_node = NewNode(OpType::SPLIT);
+				input_node->Connect(split_node);
+			}
+			assert(split_node);
+			split_node->Connect(merge_node);
+		}
+		else
+		{
+			input_node->Connect(merge_node);
+		}
+	}
+
+	Node* output_node = NewNode(output);
+	auto itr = m_registers.find(output);
+	if (itr != m_registers.end()) {
+		itr->second = output_node;
+	}
+	merge_node->Connect(output_node);
+}
+
+Node* Graph::QueryRegNode(int id) const
+{
+	auto itr = m_registers.find(id);
+	return itr == m_registers.end() ? nullptr : itr->second;
 }
 
 Node* Graph::NewNode(OpType type)
