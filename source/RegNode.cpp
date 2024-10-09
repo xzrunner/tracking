@@ -12,7 +12,8 @@ namespace tracking
 {
 
 RegNode::RegNode(int reg)
-	: m_id(reg)
+	: Node(false)
+	, m_id(reg)
 {
 }
 

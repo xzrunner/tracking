@@ -3,6 +3,11 @@
 namespace tracking
 {
 
+Node::Node(bool is_op)
+	: m_is_op(is_op)
+{
+}
+
 void Node::Connect(Node* to)
 {
 	for (auto output : m_outputs)

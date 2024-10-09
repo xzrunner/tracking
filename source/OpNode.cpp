@@ -4,7 +4,8 @@ namespace tracking
 {
 
 OpNode::OpNode(OpType type)
-	: m_type(type)
+	: Node(true)
+	, m_type(type)
 {
 }
 
