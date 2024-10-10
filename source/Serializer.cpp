@@ -11,23 +11,23 @@
 namespace tracking
 {
 
-bool Serializer::OpItem::operator == (const OpItem& op) const
+bool Serializer::OutputItem::operator == (const OutputItem& op) const
 {
 	return type == op.type && inputs == op.inputs && outputs == op.outputs;
 }
 
-std::shared_ptr<Graph> Serializer::Build(const std::vector<OpItem>& ops)
+std::shared_ptr<Graph> Serializer::Build(const std::vector<InputItem>& items)
 {
 	std::shared_ptr<Graph> graph = std::make_shared<Graph>();
-	for (auto op : ops) {
-		graph->AddOp(op.type, op.inputs, op.outputs);
+	for (auto item : items) {
+		graph->AddOp(item.type, item.inputs, item.outputs);
 	}
 	return graph;
 }
 
-std::vector<Serializer::OpItem> Serializer::Dump(const Graph& graph)
+std::vector<Serializer::OutputItem> Serializer::Dump(const Graph& graph)
 {
-	std::vector<Serializer::OpItem> ops;
+	std::vector<Serializer::OutputItem> items;
 
 	std::set<RegNode*> derive_inputs;
 	for (auto op : graph.GetAllOpNodes())
@@ -51,7 +51,7 @@ std::vector<Serializer::OpItem> Serializer::Dump(const Graph& graph)
 			{
 				assert(op->GetInputs().size() == 1);
 				std::vector<int> inputs = { static_cast<RegNode*>(op->GetInputs()[0])->GetId() };
-				ops.push_back({ OpType::SPLIT, inputs, outputs });
+				items.push_back({ OutputType::SPLIT, inputs, outputs });
 			}
 
 			continue;
@@ -94,11 +94,33 @@ std::vector<Serializer::OpItem> Serializer::Dump(const Graph& graph)
 				{
 					assert(op->GetOutputs().size() == 1);
 					std::vector<int> outputs = { static_cast<RegNode*>(op->GetOutputs()[0])->GetId() };
-					ops.push_back({ OpType::DERIVE, inputs, outputs });
+					items.push_back({ OutputType::DERIVE, inputs, outputs });
 				}
 
 				continue;
 			}
+		}
+
+		OutputType type;
+		switch (op->GetType())
+		{
+		case OpType::CREATE:
+			type = OutputType::CREATE;
+			break;
+		case OpType::DELETE:
+			type = OutputType::DELETE;
+			break;
+		case OpType::SPLIT:
+			type = OutputType::SPLIT;
+			break;
+		case OpType::MERGE:
+			type = OutputType::MERGE;
+			break;
+		case OpType::DRIVE_CHANGE:
+			type = OutputType::DRIVE_CHANGE;
+			break;
+		default:
+			assert(0);
 		}
 
 		std::vector<int> inputs, outputs;
@@ -108,7 +130,7 @@ std::vector<Serializer::OpItem> Serializer::Dump(const Graph& graph)
 		for (auto r : op->GetOutputs()) {
 			outputs.push_back(static_cast<RegNode*>(r)->GetId());
 		}
-		ops.push_back({ op->GetType(), inputs, outputs });
+		items.push_back({ type, inputs, outputs });
 	}
 
 	// delete
@@ -126,11 +148,11 @@ std::vector<Serializer::OpItem> Serializer::Dump(const Graph& graph)
 
 		if (need_delete) 
 		{
-			ops.push_back({ OpType::DELETE, { static_cast<RegNode*>(input)->GetId() }, {}});
+			items.push_back({ OutputType::DELETE, { static_cast<RegNode*>(input)->GetId() }, {}});
 		}
 	}
 
-	return ops;
+	return items;
 }
 
 }

@@ -17,7 +17,6 @@ enum class OpType
 	COPY,
 	DRIVE,
 	DRIVE_CHANGE,
-	DRIVE_CREATE,
 	TRANSFER,
 };
 

@@ -92,41 +92,72 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node)
 		}
 	}
 
-	std::sort(evolve_inputs.begin(), evolve_inputs.end(), 
-		[](const std::pair<float, int>& p0, const std::pair<float, int>& p1)
+	// evolve
+	if (!evolve_inputs.empty())
 	{
-		return p0.first > p1.first;
-	});
+		std::sort(evolve_inputs.begin(), evolve_inputs.end(),
+			[](const std::pair<float, int>& p0, const std::pair<float, int>& p1)
+		{
+			return p0.first > p1.first;
+		});
 
-	if (evolve_inputs.back().first < 1.0f)
-	{
-		g.AddMergeSplitOp(evolve_inputs, node->GetId());
-	}
-	else
-	{
-		std::vector<int> inputs;
-		for (auto p : evolve_inputs) {
-			inputs.push_back(p.second);
+		if (evolve_inputs.back().first < 1.0f)
+		{
+			g.AddMergeSplitOp(evolve_inputs, node->GetId());
 		}
-		g.AddOp(tracking::OpType::MERGE, inputs, { node->GetId() });
+		else
+		{
+			std::vector<int> inputs;
+			for (auto p : evolve_inputs) {
+				inputs.push_back(p.second);
+			}
+			g.AddOp(tracking::OpType::MERGE, inputs, { node->GetId() });
+		}
 	}
 
-	// todo: copy?
-	std::vector<int> d_inputs, dc_inputs;
-	for (auto& pair : drive_inputs)
+	// drive
+	if (!drive_inputs.empty())
 	{
-		if (pair.first & tracking::DTT_DRIVE_BIT) {
-			d_inputs.push_back(pair.second->GetId());
+		std::vector<int> cp_inputs, d_inputs, dc_inputs;
+		for (auto& pair : drive_inputs)
+		{
+			if (pair.first & tracking::DTT_COPY_BIT) {
+				cp_inputs.push_back(pair.second->GetId());
+			}
+			if (pair.first & tracking::DTT_DRIVE_BIT) {
+				d_inputs.push_back(pair.second->GetId());
+			}
+			if (pair.first & tracking::DTT_DRIVE_CHANGE_BIT) {
+				dc_inputs.push_back(pair.second->GetId());
+			}
 		}
-		if (pair.first & tracking::DTT_DRIVE_CHANGE_BIT) {
-			dc_inputs.push_back(pair.second->GetId());
+
+		// copy
+		if (evolve_inputs.empty())
+		{
+			if (cp_inputs.empty())
+			{
+				g.AddOp(tracking::OpType::CREATE, {}, { node->GetId() });
+			}
+			else
+			{
+				g.AddOp(tracking::OpType::CREATE, cp_inputs, { node->GetId() });
+			}
 		}
-	}
-	if (!d_inputs.empty()) {
-		g.AddOp(tracking::OpType::DRIVE, d_inputs, { node->GetId() });
-	}
-	if (!dc_inputs.empty()) {
-		g.AddOp(tracking::OpType::DRIVE_CHANGE, dc_inputs, { node->GetId() });
+		else
+		{
+			assert(cp_inputs.empty());
+		}
+
+		// drive
+		if (!d_inputs.empty()) {
+			g.AddOp(tracking::OpType::DRIVE, d_inputs, { node->GetId() });
+		}
+
+		// drive_change
+		if (!dc_inputs.empty()) {
+			g.AddOp(tracking::OpType::DRIVE_CHANGE, dc_inputs, { node->GetId() });
+		}
 	}
 }
 
@@ -202,14 +233,31 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 					itr->second.push_back({ n, t });
 				}
 			}
-			// copy or drive_create
+			// drive
 			else
 			{
-				auto copy_op = n->QueryOpNode(true, tracking::OpType::COPY);
-				if (copy_op && copy_op->GetInputs()[0] == t_node) {
+				auto type = std::static_pointer_cast<tracking::DriveTrace>(t)->GetType();
+
+				// copy
+				if (type & tracking::DTT_COPY_BIT)
+				{
+					auto copy_op = n->QueryOpNode(true, tracking::OpType::COPY);
+					assert(copy_op && copy_op->GetInputs()[0] == t_node);
 					g.AddOp(tracking::OpType::CREATE, { t_node->GetId() }, { n->GetId() });
-				} else {
-					g.AddOp(tracking::OpType::DRIVE_CREATE, { t_node->GetId() }, { n->GetId() });
+				}
+				else
+				{
+					g.AddOp(tracking::OpType::CREATE, {}, { n->GetId() });
+				}
+
+				// drive
+				if (type & tracking::DTT_DRIVE_BIT) {
+					g.AddOp(tracking::OpType::DRIVE, { t_node->GetId() }, { n->GetId() });
+				}
+
+				// drive_change
+				if (type & tracking::DTT_DRIVE_CHANGE_BIT) {
+					g.AddOp(tracking::OpType::DRIVE_CHANGE, { t_node->GetId() }, { n->GetId() });
 				}
 			}
 		}
@@ -227,6 +275,7 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 
 	for (auto reg : others)
 	{
+		// delete
 		if (reg->QueryOpNode(false, tracking::OpType::DELETE))
 		{
 			g.AddOp(tracking::OpType::DELETE, { reg->GetId() }, {});
