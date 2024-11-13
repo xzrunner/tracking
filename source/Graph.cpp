@@ -92,7 +92,7 @@ void Graph::AddOp(OpType type, const std::vector<int>& inputs,
 
 void Graph::AddMergeSplitOp(const std::vector<std::pair<float, int>> inputs, int output)
 {
-	assert(inputs.size() > 1);
+	//assert(inputs.size() > 1);
 
 	Node* merge_node = NewNode(OpType::MERGE);
 	for (auto& input : inputs)

@@ -8,15 +8,32 @@
 
 #include <assert.h>
 
+namespace
+{
+
+void dump_op(tracking::OpNode* op, std::vector<tracking::Serializer::OpItem>& items)
+{
+	std::vector<int> inputs, outputs;
+	for (auto r : op->GetInputs()) {
+		inputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
+	}
+	for (auto r : op->GetOutputs()) {
+		outputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
+	}
+	items.push_back({ op->GetType(), inputs, outputs});
+}
+
+}
+
 namespace tracking
 {
 
-bool Serializer::OutputItem::operator == (const OutputItem& op) const
+bool Serializer::OpItem::operator == (const OpItem& op) const
 {
 	return type == op.type && inputs == op.inputs && outputs == op.outputs;
 }
 
-std::shared_ptr<Graph> Serializer::Build(const std::vector<InputItem>& items)
+std::shared_ptr<Graph> Serializer::Build(const std::vector<OpItem>& items)
 {
 	std::shared_ptr<Graph> graph = std::make_shared<Graph>();
 	for (auto item : items) {
@@ -25,14 +42,34 @@ std::shared_ptr<Graph> Serializer::Build(const std::vector<InputItem>& items)
 	return graph;
 }
 
-std::vector<Serializer::OutputItem> Serializer::Dump(const Graph& graph)
+std::vector<Serializer::OpItem> Serializer::DumpDirectly(const Graph& graph)
 {
-	std::vector<Serializer::OutputItem> items;
+	std::vector<Serializer::OpItem> ops;
+	for (auto op : graph.GetAllOpNodes())
+	{
+		std::vector<int> inputs, outputs;
+		for (auto r : op->GetInputs()) {
+			inputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
+		}
+		for (auto r : op->GetOutputs()) {
+			outputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
+		}
+		ops.push_back({ op->GetType(), inputs, outputs });
+	}
+	return ops;
+}
+
+#ifdef USE_DERIVE_CREATE_TYPE
+std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
+{
+	std::vector<Serializer::OpItem> items;
 
 	std::set<RegNode*> derive_inputs;
 	for (auto op : graph.GetAllOpNodes())
 	{
-		if (op->GetType() == OpType::SPLIT)
+		switch (op->GetType())
+		{
+		case OpType::SPLIT:
 		{
 			std::vector<int> outputs;
 			for (auto output : op->GetOutputs())
@@ -51,12 +88,11 @@ std::vector<Serializer::OutputItem> Serializer::Dump(const Graph& graph)
 			{
 				assert(op->GetInputs().size() == 1);
 				std::vector<int> inputs = { static_cast<RegNode*>(op->GetInputs()[0])->GetId() };
-				items.push_back({ OutputType::SPLIT, inputs, outputs });
+				items.push_back({ OpType::SPLIT, inputs, outputs });
 			}
-
-			continue;
 		}
-		else if (op->GetType() == OpType::MERGE)
+			break;
+		case OpType::MERGE:
 		{
 			bool is_derive = false;
 			for (auto input : op->GetInputs())
@@ -94,43 +130,39 @@ std::vector<Serializer::OutputItem> Serializer::Dump(const Graph& graph)
 				{
 					assert(op->GetOutputs().size() == 1);
 					std::vector<int> outputs = { static_cast<RegNode*>(op->GetOutputs()[0])->GetId() };
-					items.push_back({ OutputType::DERIVE, inputs, outputs });
+					items.push_back({ OpType::DERIVE, inputs, outputs });
 				}
-
-				continue;
 			}
 		}
-
-		OutputType type;
-		switch (op->GetType())
-		{
+			break;
 		case OpType::CREATE:
-			type = OutputType::CREATE;
+		{
+			// derive_create
+			assert(op->GetOutputs().size() == 1);
+			auto drive_node = static_cast<RegNode*>(op->GetOutputs()[0])->QueryOpNode(true, OpType::DRIVE);
+			if (drive_node)
+			{
+				std::vector<int> inputs, outputs;
+				for (auto r : drive_node->GetInputs()) {
+					inputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
+				}
+				for (auto r : op->GetOutputs()) {
+					outputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
+				}
+				items.push_back({ OpType::DERIVE_CREATE, inputs, outputs });
+			}
+			else
+			{
+				dump_op(op, items);
+			}
+		}
+			
 			break;
-		case OpType::DELETE:
-			type = OutputType::DELETE;
-			break;
-		case OpType::SPLIT:
-			type = OutputType::SPLIT;
-			break;
-		case OpType::MERGE:
-			type = OutputType::MERGE;
-			break;
-		case OpType::DRIVE_CHANGE:
-			type = OutputType::DRIVE_CHANGE;
+		case OpType::DRIVE:
 			break;
 		default:
-			assert(0);
+			dump_op(op, items);
 		}
-
-		std::vector<int> inputs, outputs;
-		for (auto r : op->GetInputs()) {
-			inputs.push_back(static_cast<RegNode*>(r)->GetId());
-		}
-		for (auto r : op->GetOutputs()) {
-			outputs.push_back(static_cast<RegNode*>(r)->GetId());
-		}
-		items.push_back({ type, inputs, outputs });
 	}
 
 	// delete
@@ -148,11 +180,12 @@ std::vector<Serializer::OutputItem> Serializer::Dump(const Graph& graph)
 
 		if (need_delete) 
 		{
-			items.push_back({ OutputType::DELETE, { static_cast<RegNode*>(input)->GetId() }, {}});
+			items.push_back({ OpType::DELETE, { static_cast<RegNode*>(input)->GetId() }, {}});
 		}
 	}
 
 	return items;
 }
+#endif // USE_DERIVE_CREATE_TYPE
 
 }

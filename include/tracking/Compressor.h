@@ -10,7 +10,7 @@ class Graph;
 class Compressor
 {
 public:
-	static std::shared_ptr<Graph> Compress(const Graph& graph);
+	static std::shared_ptr<Graph> Compress(const Graph& graph, bool simplify = true);
 
 }; // Compressor
 

@@ -13,38 +13,21 @@ class Graph;
 class Serializer
 {
 public:
-	enum class OutputType
+	struct OpItem
 	{
-		CREATE,
-		DELETE,
+		bool operator == (const OpItem& op) const;
 
-		SPLIT,
-		MERGE,
-
-		DERIVE,
-		DERIVE_CREATE,
-
-		DRIVE_CHANGE,
-	};
-
-	struct OutputItem
-	{
-		bool operator == (const OutputItem& op) const;
-
-		OutputType type;
-		std::vector<int> inputs;
-		std::vector<int> outputs;
-	};
-
-	struct InputItem
-	{
 		OpType type;
 		std::vector<int> inputs;
 		std::vector<int> outputs;
 	};
 
-	static std::shared_ptr<Graph> Build(const std::vector<InputItem>& items);
-	static std::vector<OutputItem> Dump(const Graph& graph);
+	static std::shared_ptr<Graph> Build(const std::vector<OpItem>& items);
+
+	static std::vector<OpItem> DumpDirectly(const Graph& graph);
+#ifdef USE_DERIVE_CREATE_TYPE
+	static std::vector<OpItem> DumpSimplify(const Graph& graph);
+#endif // USE_DERIVE_CREATE_TYPE
 
 }; // Serializer
 
