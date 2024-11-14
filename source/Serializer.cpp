@@ -59,12 +59,12 @@ std::vector<Serializer::OpItem> Serializer::DumpDirectly(const Graph& graph)
 	return ops;
 }
 
-#ifdef USE_DERIVE_CREATE_TYPE
+#ifdef USE_DRIVE_CREATE_TYPE
 std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 {
 	std::vector<Serializer::OpItem> items;
 
-	std::set<RegNode*> derive_inputs;
+	std::set<RegNode*> evolve_inputs;
 	for (auto op : graph.GetAllOpNodes())
 	{
 		switch (op->GetType())
@@ -94,19 +94,19 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 			break;
 		case OpType::MERGE:
 		{
-			bool is_derive = false;
+			bool is_evolve = false;
 			for (auto input : op->GetInputs())
 			{
 				if (input->IsOp())
 				{
 					auto op_node = static_cast<OpNode*>(input);
 					assert(op_node->GetType() == OpType::SPLIT);
-					is_derive = true;
+					is_evolve = true;
 					break;
 				}
 			}
 
-			if (is_derive)
+			if (is_evolve)
 			{
 				std::vector<int> inputs;
 				for (auto input : op->GetInputs())
@@ -117,12 +117,12 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 						assert(op_node->GetType() == OpType::SPLIT);
 						assert(input->GetInputs().size() == 1 && !input->GetInputs()[0]->IsOp());
 						inputs.push_back(static_cast<RegNode*>(input->GetInputs()[0])->GetId());
-						derive_inputs.insert(static_cast<RegNode*>(input->GetInputs()[0]));
+						evolve_inputs.insert(static_cast<RegNode*>(input->GetInputs()[0]));
 					}
 					else
 					{
 						inputs.push_back(static_cast<RegNode*>(input)->GetId());
-						derive_inputs.insert(static_cast<RegNode*>(input));
+						evolve_inputs.insert(static_cast<RegNode*>(input));
 					}
 				}
 
@@ -130,16 +130,16 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 				{
 					assert(op->GetOutputs().size() == 1);
 					std::vector<int> outputs = { static_cast<RegNode*>(op->GetOutputs()[0])->GetId() };
-					items.push_back({ OpType::DERIVE, inputs, outputs });
+					items.push_back({ OpType::EVOLVE, inputs, outputs });
 				}
 			}
 		}
 			break;
 		case OpType::CREATE:
 		{
-			// derive_create
+			// drive_create
 			assert(op->GetOutputs().size() == 1);
-			auto drive_node = static_cast<RegNode*>(op->GetOutputs()[0])->QueryOpNode(true, OpType::DRIVE);
+			auto drive_node = static_cast<RegNode*>(op->GetOutputs()[0])->QueryOpNode(true, OpType::DRIVE_ADD);
 			if (drive_node)
 			{
 				std::vector<int> inputs, outputs;
@@ -149,7 +149,7 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 				for (auto r : op->GetOutputs()) {
 					outputs.push_back(static_cast<tracking::RegNode*>(r)->GetId());
 				}
-				items.push_back({ OpType::DERIVE_CREATE, inputs, outputs });
+				items.push_back({ OpType::DRIVE_CREATE, inputs, outputs });
 			}
 			else
 			{
@@ -158,7 +158,7 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 		}
 			
 			break;
-		case OpType::DRIVE:
+		case OpType::DRIVE_ADD:
 			break;
 		default:
 			dump_op(op, items);
@@ -166,7 +166,7 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 	}
 
 	// delete
-	for (auto input : derive_inputs)
+	for (auto input : evolve_inputs)
 	{
 		bool need_delete = true;
 		for (auto output : input->GetOutputs())
@@ -186,6 +186,6 @@ std::vector<Serializer::OpItem> Serializer::DumpSimplify(const Graph& graph)
 
 	return items;
 }
-#endif // USE_DERIVE_CREATE_TYPE
+#endif // USE_DRIVE_CREATE_TYPE
 
 }

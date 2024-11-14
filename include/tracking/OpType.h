@@ -1,7 +1,7 @@
 #pragma once
 
-#define USE_DERIVE_TYPE
-//#define USE_DERIVE_CREATE_TYPE
+#define USE_EVOLVE_TYPE
+//#define USE_DRIVE_CREATE_TYPE
 
 namespace tracking
 {
@@ -18,23 +18,23 @@ enum class OpType
 	MERGE,
 
 	COPY,
-	DRIVE,
-	DRIVE_CHANGE,
+	DRIVE_ADD,
+	DRIVE_MOD,
 	TRANSFER,
 
-#ifdef USE_DERIVE_TYPE
-	DERIVE,
-#endif // USE_DERIVE_TYPE
-#ifdef USE_DERIVE_CREATE_TYPE
-	DERIVE_CREATE,
-#endif // USE_DERIVE_CREATE_TYPE
+#ifdef USE_EVOLVE_TYPE
+	EVOLVE,
+#endif // USE_EVOLVE_TYPE
+#ifdef USE_DRIVE_CREATE_TYPE
+	DRIVE_CREATE,
+#endif // USE_DRIVE_CREATE_TYPE
 };
 
 inline bool is_evolve_input(OpType type)
 {
 	return type != OpType::COPY
-		&& type != OpType::DRIVE
-		&& type != OpType::DRIVE_CHANGE;
+		&& type != OpType::DRIVE_ADD
+		&& type != OpType::DRIVE_MOD;
 }
 
 inline bool is_input_delete(OpType type)
@@ -42,29 +42,29 @@ inline bool is_input_delete(OpType type)
 	return type == OpType::DELETE
 		|| type == OpType::SPLIT
 		|| type == OpType::MERGE
-#ifdef USE_DERIVE_TYPE
-		|| type == OpType::DERIVE
-#endif // USE_DERIVE_TYPE
+#ifdef USE_EVOLVE_TYPE
+		|| type == OpType::EVOLVE
+#endif // USE_EVOLVE_TYPE
 		;
 }
 
 inline bool is_output_create(OpType type)
 {
 	return /*type != OpType::COPY
-		&& */type != OpType::DRIVE
-		&& type != OpType::DRIVE_CHANGE;
+		&& */type != OpType::DRIVE_ADD
+		&& type != OpType::DRIVE_MOD;
 }
 
 inline bool is_need_output(OpType type)
 {
-	return type == OpType::DRIVE_CHANGE;
+	return type == OpType::DRIVE_MOD;
 }
 
 inline bool need_transmit_trace(OpType type)
 {
 	return type == tracking::OpType::COPY
-		|| type == tracking::OpType::DRIVE
-		|| type == tracking::OpType::DRIVE_CHANGE;
+		|| type == tracking::OpType::DRIVE_ADD
+		|| type == tracking::OpType::DRIVE_MOD;
 }
 
 }

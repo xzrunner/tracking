@@ -105,10 +105,10 @@ void RegNode::TransmitDriveTraces(RegNode* parent, OpType type, RegNode* expect)
 	case OpType::COPY:
 		flag = DTT_COPY_BIT;
 		break;
-	case OpType::DRIVE:
+	case OpType::DRIVE_ADD:
 		flag = DTT_DRIVE_BIT;
 		break;
-	case OpType::DRIVE_CHANGE:
+	case OpType::DRIVE_MOD:
 		flag = DTT_DRIVE_CHANGE_BIT;
 		break;
 	default:

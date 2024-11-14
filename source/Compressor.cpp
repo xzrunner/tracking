@@ -107,7 +107,7 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 	auto geo_evolve_op = [&evolve_inputs, &g, &node]()
 	{
 		assert(!evolve_inputs.empty());
-#ifdef USE_DERIVE_TYPE
+#ifdef USE_EVOLVE_TYPE
 		bool is_merge = true;
 		std::vector<int> inputs;
 		for (auto p : evolve_inputs)
@@ -116,7 +116,7 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 				is_merge = false;
 			inputs.push_back(p.second);
 		}
-		tracking::OpType type = is_merge ? tracking::OpType::MERGE : tracking::OpType::DERIVE;
+		tracking::OpType type = is_merge ? tracking::OpType::MERGE : tracking::OpType::EVOLVE;
 		g.AddOp(type, inputs, { node->GetId() });
 #else
 		if (evolve_inputs.back().first < 1.0f)
@@ -131,7 +131,7 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 			}
 			g.AddOp(tracking::OpType::MERGE, inputs, { node->GetId() });
 		}
-#endif // USE_DERIVE_TYPE
+#endif // USE_EVOLVE_TYPE
 	};
 
 	if (!evolve_inputs.empty() && (!drive_add_inputs.empty() || !drive_mod_inputs.empty()))
@@ -146,7 +146,7 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 				inputs.push_back(pair.second->GetId());
 			}
 			g.AddOp(tracking::OpType::CREATE, inputs, { node->GetId() });
-			g.AddOp(tracking::OpType::DRIVE, inputs, { node->GetId() });
+			g.AddOp(tracking::OpType::DRIVE_ADD, inputs, { node->GetId() });
 		}
 		else
 		{
@@ -157,7 +157,7 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 			for (auto& pair : drive_mod_inputs) {
 				inputs.push_back(pair.second->GetId());
 			}
-			g.AddOp(tracking::OpType::DRIVE_CHANGE, inputs, { node->GetId() });
+			g.AddOp(tracking::OpType::DRIVE_MOD, inputs, { node->GetId() });
 		}
 	}
 	else if (!evolve_inputs.empty())
@@ -193,7 +193,7 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 			else 
 			{
 				g.AddOp(tracking::OpType::CREATE, cp_inputs, { node->GetId() });
-				g.AddOp(tracking::OpType::DRIVE, cp_inputs, { node->GetId() });
+				g.AddOp(tracking::OpType::DRIVE_ADD, cp_inputs, { node->GetId() });
 			}
 		}
 		else
@@ -205,12 +205,12 @@ void compress_merge(tracking::Graph& g, tracking::RegNode* node, bool simplify)
 
 		// drive
 		if (!d_inputs.empty()) {
-			g.AddOp(tracking::OpType::DRIVE, d_inputs, { node->GetId() });
+			g.AddOp(tracking::OpType::DRIVE_ADD, d_inputs, { node->GetId() });
 		}
 
 		// drive_change
 		if (!dc_inputs.empty()) {
-			g.AddOp(tracking::OpType::DRIVE_CHANGE, dc_inputs, { node->GetId() });
+			g.AddOp(tracking::OpType::DRIVE_MOD, dc_inputs, { node->GetId() });
 		}
 	}
 }
@@ -291,18 +291,18 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 			// drive
 			else
 			{
-#ifdef USE_DERIVE_CREATE_TYPE
+#ifdef USE_DRIVE_CREATE_TYPE
 				if (simplify)
 				{
 					auto copy_op = n->QueryOpNode(true, tracking::OpType::COPY);
 					if (copy_op && copy_op->GetInputs()[0] == t_node) {
 						g.AddOp(tracking::OpType::CREATE, { t_node->GetId() }, { n->GetId() });
 					} else {
-						g.AddOp(tracking::OpType::DERIVE_CREATE, { t_node->GetId() }, { n->GetId() });
+						g.AddOp(tracking::OpType::DRIVE_CREATE, { t_node->GetId() }, { n->GetId() });
 					}
 				}
 				else
-#endif // USE_DERIVE_CREATE_TYPE
+#endif // USE_DRIVE_CREATE_TYPE
 				{
 					auto type = std::static_pointer_cast<tracking::DriveTrace>(t)->GetType();
 
@@ -330,7 +330,7 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 						else
 						{
 							g.AddOp(tracking::OpType::CREATE, {}, { n->GetId() });
-							g.AddOp(tracking::OpType::DRIVE, { t_node->GetId() }, { n->GetId() });
+							g.AddOp(tracking::OpType::DRIVE_ADD, { t_node->GetId() }, { n->GetId() });
 						}
 					} 
 					else 
@@ -340,12 +340,12 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 
 					// drive
 					if (type & tracking::DTT_DRIVE_BIT) {
-						g.AddOp(tracking::OpType::DRIVE, { t_node->GetId() }, { n->GetId() });
+						g.AddOp(tracking::OpType::DRIVE_ADD, { t_node->GetId() }, { n->GetId() });
 					}
 
 					// drive_change
 					if (type & tracking::DTT_DRIVE_CHANGE_BIT) {
-						g.AddOp(tracking::OpType::DRIVE_CHANGE, { t_node->GetId() }, { n->GetId() });
+						g.AddOp(tracking::OpType::DRIVE_MOD, { t_node->GetId() }, { n->GetId() });
 					}
 				}
 			}
@@ -385,7 +385,7 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 				}
 			}
 			if (!inputs.empty()) {
-				g.AddOp(tracking::OpType::DRIVE_CHANGE, inputs, { reg->GetId() });
+				g.AddOp(tracking::OpType::DRIVE_MOD, inputs, { reg->GetId() });
 			}
 		}
 	}
