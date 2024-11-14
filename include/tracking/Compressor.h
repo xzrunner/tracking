@@ -10,7 +10,15 @@ class Graph;
 class Compressor
 {
 public:
-	static std::shared_ptr<Graph> Compress(const Graph& graph, bool simplify = true);
+	enum class Strategy
+	{
+		EvolveAndDrive,
+		OnlyEvolve,
+		OnlyDrive
+	};
+
+	static std::shared_ptr<Graph> Compress(const Graph& graph, 
+		Strategy strategy = Strategy::EvolveAndDrive, bool simplify = false);
 
 }; // Compressor
 

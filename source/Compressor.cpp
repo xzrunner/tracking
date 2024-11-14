@@ -164,7 +164,8 @@ void compress_one_trace(tracking::Graph& g, tracking::RegNode* node, bool simpli
 	}
 }
 
-void compress_multi_traces(tracking::Graph& g, tracking::RegNode* node, bool simplify)
+void compress_multi_traces(tracking::Graph& g, tracking::RegNode* node, 
+	                       tracking::Compressor::Strategy strategy, bool simplify)
 {
 	assert(node->GetTraces().size() > 1);
 
@@ -232,6 +233,20 @@ void compress_multi_traces(tracking::Graph& g, tracking::RegNode* node, bool sim
 		}
 #endif // USE_EVOLVE_TYPE
 	};
+
+	if (!evolve_inputs.empty() && (!drive_add_inputs.empty() || !drive_mod_inputs.empty()))
+	{
+		switch (strategy)
+		{
+		case tracking::Compressor::Strategy::OnlyEvolve:
+			drive_add_inputs.clear();
+			drive_mod_inputs.clear();
+			break;
+		case tracking::Compressor::Strategy::OnlyDrive:
+			evolve_inputs.clear();
+			break;
+		}
+	}
 
 	if (!evolve_inputs.empty() && (!drive_add_inputs.empty() || !drive_mod_inputs.empty()))
 	{
@@ -355,6 +370,7 @@ void compress_split(tracking::Graph& g, const tracking::RegNode* parent,
 void compress_with_output(tracking::Graph& g, const std::set<int> input_ids, 
 	                      const std::vector<tracking::RegNode*>& outputs, 
 	                      const std::vector<tracking::RegNode*>& others,
+	                      tracking::Compressor::Strategy strategy,
 	                      bool simplify)
 {
 	std::map<tracking::RegNode*, std::vector<std::pair<tracking::RegNode*, std::shared_ptr<tracking::Trace>>>> split_collect;
@@ -362,12 +378,13 @@ void compress_with_output(tracking::Graph& g, const std::set<int> input_ids,
 	for (auto n : outputs)
 	{
 		auto& traces = n->GetTraces();
-		if (traces.empty())
+		if (traces.empty()) {
 			compress_no_trace(g, n);
-		else if (traces.size() == 1)
+		} else if (traces.size() == 1) {
 			compress_one_trace(g, n, simplify, split_collect);
-		else
-			compress_multi_traces(g, n, simplify);
+		} else {
+			compress_multi_traces(g, n, strategy, simplify);
+		}
 
 		for (auto t : traces)
 			visited.insert(t->GetNode());
@@ -452,7 +469,7 @@ void compress_with_input(tracking::Graph& g, const std::vector<tracking::RegNode
 namespace tracking
 {
 
-std::shared_ptr<Graph> Compressor::Compress(const Graph& src, bool simplify)
+std::shared_ptr<Graph> Compressor::Compress(const Graph& src, tracking::Compressor::Strategy strategy, bool simplify)
 {
 	std::vector<RegNode*> input, output, need_output;
 	std::set<int> input_ids, output_ids;
@@ -485,7 +502,7 @@ std::shared_ptr<Graph> Compressor::Compress(const Graph& src, bool simplify)
 	auto dst = std::make_shared<Graph>();
 
 	// analyze output
-	compress_with_output(*dst, input_ids, output, need_output, false);
+	compress_with_output(*dst, input_ids, output, need_output, strategy, simplify);
 
 	// analyze input
 	compress_with_input(*dst, input, output_ids);
