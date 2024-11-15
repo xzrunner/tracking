@@ -24,22 +24,25 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 
 	for (auto root : roots)
 	{
-		std::queue<tracking::RegNode*> buf;
-		buf.push(root);
+		std::queue<tracking::OpNode*> buf;
+		std::set<tracking::OpNode*> visited;
+		for (auto node : root->GetOutputs())
+		{
+			auto op_node = static_cast<tracking::OpNode*>(node);
+			buf.push(op_node);
+			visited.insert(op_node);
+		}
+
 		while (!buf.empty())
 		{
-			tracking::RegNode* reg = buf.front();
+			tracking::OpNode* op = buf.front();
 			buf.pop();
 
-			auto& reg_outputs = reg->GetOutputs();
-			if (reg_outputs.empty()) {
-				continue;
-			}
-
-			for (auto op : reg_outputs)
+			auto& op_outputs = op->GetOutputs();
+			tracking::OpType op_type = static_cast<tracking::OpNode*>(op)->GetType();
+			for (auto input : op->GetInputs())
 			{
-				auto& op_outputs = op->GetOutputs();
-				tracking::OpType op_type = static_cast<tracking::OpNode*>(op)->GetType();
+				auto reg = static_cast<tracking::RegNode*>(input);
 				if (op_type == tracking::OpType::SPLIT)
 				{
 					for (auto c : op_outputs)
@@ -58,9 +61,18 @@ void build_traces(const std::vector<tracking::RegNode*>& roots)
 					assert(op_outputs.size() == 1);
 					static_cast<tracking::RegNode*>(op_outputs[0])->TransmitDriveTraces(reg, op_type, root);
 				}
+			}
 
-				for (auto n : op_outputs) {
-					buf.push(static_cast<tracking::RegNode*>(n));
+			for (auto next_reg : op_outputs)
+			{
+				for (auto next_op : next_reg->GetOutputs())
+				{
+					auto op_node = static_cast<tracking::OpNode*>(next_op);
+					if (visited.find(op_node) == visited.end())
+					{
+						buf.push(op_node);
+						visited.insert(op_node);
+					}
 				}
 			}
 		}
